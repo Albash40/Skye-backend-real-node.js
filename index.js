@@ -1,55 +1,67 @@
-const express = require('express');
-const cors = require('cors');
-const crypto = require('crypto');
+const express = require("express");
+const crypto = require("crypto");
+const cors = require("cors");
 const app = express();
+
 const PORT = process.env.PORT || 3000;
 
-// ✅ Enable CORS only for your GitHub Pages domain
-app.use(cors({
-  origin: 'https://albash40.github.io',
-}));
+// 🔐 Your Telegram Bot Token — keep this safe!
+const TELEGRAM_BOT_TOKEN = "8072913283:AAHhPDOWSYofrLKXLbKmNWJQ0wC1tu4XC2c";
 
+app.use(cors());
 app.use(express.json());
 
-// ✅ Set your Telegram bot token here
-const TELEGRAM_BOT_TOKEN = '8072913283:AAHhPDOWSYofrLKXLbKmNWJQ0wC1tu4XC2c';
-
-app.get("/", (req, res) => {
-  res.send("✅ Skye backend is running");
-});
-
 app.post("/auth/telegram", (req, res) => {
-  const data = req.body;
-  console.log("📥 Received Telegram data:", data);
+  const { initData } = req.body;
 
-  // ✅ Use only primitive top-level fields
-  const fields = [];
-  for (const key in data) {
-    if (key !== "hash" && typeof data[key] !== "object") {
-      fields.push(`${key}=${data[key]}`);
-    }
+  if (!initData) {
+    return res.status(400).json({ success: false, message: "Missing initData" });
   }
 
-  fields.sort(); // Required: Sort alphabetically
-  const checkString = fields.join('\n');
+  const parsed = new URLSearchParams(initData);
+  const hash = parsed.get("hash");
 
-  const secret = crypto
-    .createHash('sha256')
+  // Prepare string to validate signature
+  const dataCheckArr = [];
+  parsed.forEach((value, key) => {
+    if (key !== "hash") {
+      dataCheckArr.push(`${key}=${value}`);
+    }
+  });
+
+  const checkString = dataCheckArr.sort().join("\n");
+
+  const secretKey = crypto
+    .createHash("sha256")
     .update(TELEGRAM_BOT_TOKEN)
     .digest();
 
   const hmac = crypto
-    .createHmac('sha256', secret)
+    .createHmac("sha256", secretKey)
     .update(checkString)
-    .digest('hex');
+    .digest("hex");
 
-  if (hmac === data.hash) {
-    console.log("✅ Telegram user authenticated:", data);
-    res.json({ success: true, user: data });
-  } else {
-    console.log("❌ Invalid login attempt", { data, hmac, expected: data.hash });
-    res.status(403).json({ success: false, message: "Invalid Telegram login" });
+  if (hmac !== hash) {
+    console.log("❌ Invalid Telegram login");
+    return res.status(403).json({ success: false, message: "Invalid login" });
   }
+
+  // ✅ Valid request — now decode user
+  const userJSON = parsed.get("user");
+  let user = {};
+  try {
+    user = JSON.parse(userJSON);
+  } catch (err) {
+    console.error("Error parsing user:", err);
+    return res.status(500).json({ success: false, message: "User parse error" });
+  }
+
+  console.log("✅ Verified Telegram user:", user);
+  res.json({ success: true, user });
+});
+
+app.get("/", (req, res) => {
+  res.send("Skye backend running securely with Telegram auth ✅");
 });
 
 app.listen(PORT, () => {
