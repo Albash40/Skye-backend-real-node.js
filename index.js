@@ -5,7 +5,7 @@ const cors = require("cors");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ Your real bot token (safe on server)
+// ✅ Your Telegram Bot Token
 const TELEGRAM_BOT_TOKEN = "8072913283:AAHhPDOWSYofrLKXLbKmNWJQ0wC1tu4XC2c";
 
 app.use(cors());
@@ -22,13 +22,18 @@ app.post("/auth/telegram", (req, res) => {
   const hash = parsed.get("hash");
 
   const dataCheckArr = [];
+
   parsed.forEach((value, key) => {
-    if (key !== "hash") {
+    // ✅ ONLY use these keys
+    if (
+      key !== "hash" &&
+      ["auth_date", "user", "query_id"].includes(key)
+    ) {
       dataCheckArr.push(`${key}=${value}`);
     }
   });
 
-  const checkString = dataCheckArr.sort().join('\n');
+  const checkString = dataCheckArr.sort().join("\n");
 
   const secretKey = crypto
     .createHash("sha256")
@@ -55,7 +60,7 @@ app.post("/auth/telegram", (req, res) => {
     user = JSON.parse(userRaw);
   } catch (err) {
     console.error("❌ Error parsing user data:", err);
-    return res.status(500).json({ success: false, message: "Invalid user data" });
+    return res.status(500).json({ success: false, message: "User parse error" });
   }
 
   console.log("✅ Authenticated user:", user);
@@ -63,7 +68,7 @@ app.post("/auth/telegram", (req, res) => {
 });
 
 app.get("/", (req, res) => {
-  res.send("Skye backend running ✅");
+  res.send("✅ Skye backend with Telegram auth is live");
 });
 
 app.listen(PORT, () => {
