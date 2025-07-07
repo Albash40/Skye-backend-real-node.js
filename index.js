@@ -1,24 +1,67 @@
-// server.js (backend) const express = require("express"); const crypto = require("crypto"); const cors = require("cors"); const app = express();
+const express = require("express");
+const crypto = require("crypto");
+const cors = require("cors");
+const app = express();
 
-const PORT = process.env.PORT || 3000; const TELEGRAM_BOT_TOKEN = "8072913283:AAHhPDOWSYofrLKXLbKmNWJQ0wC1tu4XC2c";
+const PORT = process.env.PORT || 3000;
 
-app.use(cors()); app.use(express.json());
+// Your Telegram bot token
+const TELEGRAM_BOT_TOKEN = "8072913283:AAHhPDOWSYofrLKXLbKmNWJQ0wC1tu4XC2c";
 
-app.post("/auth/telegram", (req, res) => { const { initData } = req.body; if (!initData) return res.status(400).json({ success: false, message: "Missing initData" });
+app.use(cors());
+app.use(express.json());
 
-const parsed = new URLSearchParams(initData); const hash = parsed.get("hash");
+app.post("/auth/telegram", (req, res) => {
+  const { initData } = req.body;
 
-// ONLY include keys allowed by Telegram const allowedKeys = ["auth_date", "user", "query_id"]; const dataCheckArr = []; for (const [key, value] of parsed.entries()) { if (key !== "hash" && allowedKeys.includes(key)) { dataCheckArr.push(${key}=${value}); } } const checkString = dataCheckArr.sort().join("\n");
+  if (!initData) {
+    return res.status(400).json({ success: false, message: "Missing initData" });
+  }
 
-const secret = crypto.createHash("sha256").update(TELEGRAM_BOT_TOKEN).digest(); const computedHash = crypto.createHmac("sha256", secret).update(checkString).digest("hex");
+  const parsed = new URLSearchParams(initData);
+  const hash = parsed.get("hash");
 
-if (computedHash !== hash) { console.log("❌ Invalid login attempt", { expected: hash, computed: computedHash, checkString }); return res.status(403).json({ success: false, message: "Invalid login" }); }
+  const dataCheckArr = [];
+  parsed.forEach((value, key) => {
+    if (key !== "hash") {
+      dataCheckArr.push(`${key}=${value}`);
+    }
+  });
 
-let user = {}; try { user = JSON.parse(parsed.get("user")); } catch (err) { return res.status(500).json({ success: false, message: "User parse error" }); }
+  const checkString = dataCheckArr.sort().join("\n");
 
-console.log("✅ Verified user", user); return res.json({ success: true, user }); });
+  const secretKey = crypto
+    .createHash("sha256")
+    .update(TELEGRAM_BOT_TOKEN)
+    .digest();
 
-app.get("/", (req, res) => { res.send("Skye backend running ✅"); });
+  const computedHash = crypto
+    .createHmac("sha256", secretKey)
+    .update(checkString)
+    .digest("hex");
 
-app.listen(PORT, () => { console.log(Server running on port ${PORT}); });
+  if (computedHash !== hash) {
+    console.log("❌ Invalid login attempt:");
+    console.log({ expected: hash, computed: computedHash, checkString });
+    return res.status(403).json({ success: false, message: "Invalid login" });
+  }
 
+  const userJSON = parsed.get("user");
+  let user;
+  try {
+    user = JSON.parse(userJSON);
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "User parse error" });
+  }
+
+  console.log("✅ Verified Telegram user:", user);
+  res.json({ success: true, user });
+});
+
+app.get("/", (req, res) => {
+  res.send("✅ Skye backend with Telegram Auth is running!");
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+})
