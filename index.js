@@ -1,33 +1,36 @@
-
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Enable CORS for all origins (customize as needed)
-app.use(cors());
+// ✅ Enable CORS only for your GitHub Pages domain
+app.use(cors({
+  origin: 'https://albash40.github.io',
+}));
+
 app.use(express.json());
 
+// ✅ Set your Telegram bot token here
 const TELEGRAM_BOT_TOKEN = '8072913283:AAHhPDOWSYofrLKXLbKmNWJQ0wC1tu4XC2c';
- // Replace with your real bot token
 
 app.get("/", (req, res) => {
-  res.send("Hello from Skye backend ✅");
+  res.send("✅ Skye backend is running");
 });
 
 app.post("/auth/telegram", (req, res) => {
   const data = req.body;
-  console.log("Received Telegram data:", data);
+  console.log("📥 Received Telegram data:", data);
 
-  // Only use top-level primitive fields for hash checking
+  // ✅ Use only primitive top-level fields
   const fields = [];
   for (const key in data) {
     if (key !== "hash" && typeof data[key] !== "object") {
       fields.push(`${key}=${data[key]}`);
     }
   }
-  fields.sort(); // sort alphabetically
+
+  fields.sort(); // Required: Sort alphabetically
   const checkString = fields.join('\n');
 
   const secret = crypto
@@ -36,21 +39,19 @@ app.post("/auth/telegram", (req, res) => {
     .digest();
 
   const hmac = crypto
-    .createHmac("sha256", secret)
+    .createHmac('sha256', secret)
     .update(checkString)
-    .digest("hex");
+    .digest('hex');
 
   if (hmac === data.hash) {
     console.log("✅ Telegram user authenticated:", data);
     res.json({ success: true, user: data });
   } else {
-    console.log("❌ Invalid Telegram login", { data, checkString, hmac, expected: data.hash });
+    console.log("❌ Invalid login attempt", { data, hmac, expected: data.hash });
     res.status(403).json({ success: false, message: "Invalid Telegram login" });
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Skye backend running on port ${PORT}`);
-});
-
-
+  console.log(`🚀 Skye backend running on port ${PORT}`);
+})
