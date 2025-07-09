@@ -2,8 +2,8 @@ const express = require("express");
 const crypto = require("crypto");
 const cors = require("cors");
 const app = express();
-
 const PORT = process.env.PORT || 3000;
+
 const TELEGRAM_BOT_TOKEN = "8072913283:AAHhPDOWSYofrLKXLbKmNWJQ0wC1tu4XC2c";
 
 app.use(cors());
@@ -16,24 +16,21 @@ app.post("/auth/telegram", (req, res) => {
     return res.status(400).json({ success: false, message: "Missing initData" });
   }
 
-  // 🔐 Step 1: Extract hash from initData
-  const urlParams = new URLSearchParams(initData);
-  const hash = urlParams.get("hash");
-  if (!hash) {
-    return res.status(400).json({ success: false, message: "Missing hash" });
+  // Parse initData string into key-value pairs
+  const parsed = new URLSearchParams(initData);
+  const hash = parsed.get("hash");
+
+  // Build check string
+  const dataCheckArr = [];
+  for (const [key, value] of parsed.entries()) {
+    if (key !== "hash") {
+      dataCheckArr.push(`${key}=${value}`);
+    }
   }
 
-  // 🔐 Step 2: Remove hash and sort rest
-  const dataCheckArray = [];
-  urlParams.forEach((value, key) => {
-    if (key !== "hash") {
-      dataCheckArray.push(`${key}=${value}`);
-    }
-  });
-  dataCheckArray.sort();
-  const checkString = dataCheckArray.join("\n");
+  const checkString = dataCheckArr.sort().join("\n");
 
-  // 🔐 Step 3: Generate HMAC SHA256
+  // Create the HMAC hash to verify
   const secretKey = crypto
     .createHash("sha256")
     .update(TELEGRAM_BOT_TOKEN)
@@ -44,33 +41,31 @@ app.post("/auth/telegram", (req, res) => {
     .update(checkString)
     .digest("hex");
 
-  console.log("✅ checkString:\n", checkString);
-  console.log("✅ Calculated HMAC:", hmac);
-  console.log("🟡 Telegram Hash:", hash);
-
-  // 🔐 Step 4: Compare and respond
-  if (hmac === hash) {
-    // Parse user info from initData
-    const userRaw = urlParams.get("user");
-    let user = {};
-    try {
-      user = JSON.parse(userRaw);
-    } catch (err) {
-      return res.status(500).json({ success: false, message: "User parse error" });
-    }
-
-    console.log("🎉 Login success:", user);
-    return res.json({ success: true, user });
-  } else {
-    console.log("❌ Invalid login: hash mismatch");
-    return res.status(403).json({ success: false, message: "Invalid hash" });
+  if (hmac !== hash) {
+    console.log("❌ Invalid Telegram login:");
+    console.log("Expected:", hash);
+    console.log("Generated:", hmac);
+    console.log("Check String:", checkString);
+    return res.status(403).json({ success: false, message: "Invalid login" });
   }
+
+  // ✅ User is verified
+  const userJSON = parsed.get("user");
+  let user = {};
+  try {
+    user = JSON.parse(decodeURIComponent(userJSON));
+  } catch (err) {
+    return res.status(500).json({ success: false, message: "Invalid user JSON" });
+  }
+
+  console.log("✅ Telegram login successful:", user);
+  res.json({ success: true, user });
 });
 
 app.get("/", (req, res) => {
-  res.send("Skye backend is running ✅");
+  res.send("✅ Skye backend running with secure Telegram login.");
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 Skye backend running on port ${PORT}`);
 });
